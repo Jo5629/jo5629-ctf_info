@@ -127,7 +127,6 @@ end)
 
 minetest.register_chatcommand("ctf_info", {
     description = "CTF Info.",
-    privs = {server = true},
     func = function(name, param)
         fetch_url(url)
         minetest.after(1, function()
