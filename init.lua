@@ -73,6 +73,8 @@ local function fetch_url(url)
             if result.code == 200 then
                 local json = minetest.parse_json(result.data)
 
+                if json == nil then return end
+                    
                 ctf_info.current_map.name = json.current_map.name
                 ctf_info.current_map.start_time = json.current_map.start_time
 
