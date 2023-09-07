@@ -1,67 +1,14 @@
---> Tables used for the mod.
-ctf_info = {}
+local modpath = minetest.get_modpath(minetest.get_current_modname())
 
-ctf_info.current_map = {
-    name = "",
-    start_time = 0,
-}
-
-ctf_info.current_mode = {
-    matches = 0,
-    matches_played = 0,
-    name = "",
-}
-
-ctf_info.player_info = {
-    count = 0
-}
-
-ctf_info.modes = {
-    ["nade_fight"] = "Nade Fight",
-    ["classes"] = "Classes",
-    ["classic"] = "Classic",
-}
-
-ctf_info.completed = false
-ctf_info.players = {}
-
---> Code.
-dofile(minetest.get_modpath(minetest.get_current_modname()) .. "/maps.lua")
-dofile(minetest.get_modpath(minetest.get_current_modname()) .. "/notifications.lua")
+dofile(modpath .. "/settings.lua")
+dofile(modpath .. "/formspecs.lua")
+dofile(modpath .. "/notifications.lua")
 
 local http = minetest.request_http_api()
 local url = "https://ctf.rubenwardy.com/api/game.json"
 
 if not http then
     error("\n\n[CTF Info] Please add the mod to secure.http_mods for the mod to function!\n")
-end
-
-minetest.register_on_leaveplayer(function(player)
-    ctf_info.players[player:get_player_name()] = nil
-end)
-
-local function get_time_elapsed(start_time)
-    local time_elapsed = os.time(os.date("!*t")) - start_time
-
-    local date = os.date("*t", time_elapsed)
-
-    date.hour = tostring(date.hour)
-    date.min = tostring(date.min)
-    date.sec = tostring(date.sec)
-
-    if tonumber(date.hour) < 10 then
-        date.hour = "0" .. tostring(date.hour)
-    end
-
-    if tonumber(date.min) < 10 then
-        date.min = "0" .. tostring(date.min)
-    end
-
-    if tonumber(date.sec) < 10 then
-        date.sec = "0" .. tostring(date.sec)
-    end
-
-    return date
 end
 
 local function fetch_url(url)
@@ -75,9 +22,9 @@ local function fetch_url(url)
 
                 if json == nil then
                     minetest.log("ERROR", "Could not receive JSON file although request succeeded.")
-                    return 
+                    return
                 end
-                    
+
                 ctf_info.current_map.name = json.current_map.name
                 ctf_info.current_map.start_time = json.current_map.start_time
 
@@ -86,6 +33,7 @@ local function fetch_url(url)
                 ctf_info.current_mode.name = json.current_mode.name
 
                 ctf_info.player_info.count = json.player_info.count
+                ctf_info.player_info.players = json.player_info.players
             end
         else
             ctf_info.completed = false
@@ -93,41 +41,30 @@ local function fetch_url(url)
     end)
 end
 
-local function get_formspec()
-    local current_mode = string.format("Current Mode: %s. Match %d of %d.", ctf_info.modes[ctf_info.current_mode.name], ctf_info.current_mode.matches_played + 1, ctf_info.current_mode.matches)
-    local current_map = string.format("Current Map: %s", ctf_info.current_map.name)
-    local players_online = string.format("Players Online: %d", ctf_info.player_info.count)
-    local date = get_time_elapsed(ctf_info.current_map.start_time)
-    local time_elapsed = string.format("Time Elapsed: %s:%s:%s", date.hour, date.min, date.sec)
-        
-    local formspec = {
-        "formspec_version[4]",
-        "size[8,3.6]",
-        "label[0.375,0.5;CTF Info by Jo5629]",
-        "label[0.375,1.5;".. current_mode .."]",
-        "label[0.375,2;".. current_map .."]",
-        "label[0.375,2.5;" .. time_elapsed .."]",
-        "label[0.375,3;".. players_online .."]",
-        "button_exit[6.125,0.2;1.5,1;exit;Exit]",
-        "button[4,0.2;2,1;notifications;Notifications]",
-    }
-    local formspec = table.concat(formspec, "")
-
-    return formspec
-end
+minetest.register_on_mods_loaded(function()
+    fetch_url(url)
+end)
 
 local timer = 0
 minetest.register_globalstep(function(dtime)
     timer = timer + dtime
     if timer >= 0.2 then
-        fetch_url(url)
-        for k, v in pairs(ctf_info.players) do
-            if ctf_info.players[k] then
-                minetest.show_formspec(k, "ctf_info:formspec", get_formspec())
+        if ctf_info.completed then
+            fetch_url(url)
+        end
+
+        for player, v in pairs(ctf_info.main_formspec_players) do
+            if ctf_info.main_formspec_players[player] then
+                minetest.show_formspec(player, "ctf_info:formspec", ctf_info.get_main_formspec())
             end
         end
 
-    end
+        for player, v in pairs(ctf_info.players_online_formspec) do
+            if ctf_info.players_online_formspec[player] then
+                minetest.show_formspec(player, "ctf_info:players_online", ctf_info.get_players_formspec())
+            end
+        end
+    end 
 end)
 
 minetest.register_chatcommand("ctf_info", {
@@ -136,8 +73,8 @@ minetest.register_chatcommand("ctf_info", {
         fetch_url(url)
         minetest.after(1, function()
             if ctf_info.completed then
-                minetest.show_formspec(name, "ctf_info:formspec", get_formspec())
-                ctf_info.players[name] = true
+                minetest.show_formspec(name, "ctf_info:formspec", ctf_info.get_main_formspec())
+                ctf_info.main_formspec_players[name] = true
             else
                 minetest.chat_send_player(name, minetest.colorize("#FF0000", "Could not load formspec. Check your WiFi connection."))
             end
@@ -147,33 +84,57 @@ minetest.register_chatcommand("ctf_info", {
 
 minetest.register_on_player_receive_fields(function(player, formname, fields)
     local name = player:get_player_name()
-    if formname ~= "ctf_info:formspec" then
-        return
+    
+    if formname == "ctf_info:notifications" then
+        if fields.back then
+            minetest.show_formspec(name, "ctf_info:formspec", ctf_info.get_main_formspec())
+            ctf_info.main_formspec_players[name] = true
+        end
+    
+        if fields.quit or fields.back then
+            ctf_info.notification_formspec_players[name] = nil
+        end
     end
 
-    if fields.exit or fields.notifications then
-        ctf_info.players[name] = nil
+    if formname == "ctf_info:formspec" then
+        ctf_info.main_formspec_players[name] = true
+
+
+        if fields.exit or fields.notifications or fields.quit or fields.players then
+            ctf_info.main_formspec_players[name] = nil
+        end
+
+        if fields.quit then
+            minetest.close_formspec(name, formname)
+        end
+
+        if fields.notifications then
+            minetest.show_formspec(name, "ctf_info:notifications", ctf_info.get_notifications_formspec(name))
+            ctf_info.notification_formspec_players[name] = true
+        end
+
+        if fields.players then
+            minetest.show_formspec(name, "ctf_info:players_online", ctf_info.get_players_formspec())
+            ctf_info.players_online_formspec[name] = true
+        end
     end
 
-    if fields.quit then
-        ctf_info.players[name] = nil
-        minetest.close_formspec(name, formname)
+    if formname == "ctf_info:players_online" then
+
+        if fields.back or fields.quit then
+            ctf_info.players_online_formspec[name] = nil
+        end
+
+        if fields.back then
+            ctf_info.main_formspec_players[name] = true
+            minetest.show_formspec(name, "ctf_info:formspec", ctf_info.get_main_formspec())
+        end
     end
 end)
 
-minetest.register_on_player_receive_fields(function(player, formname, fields)
-    local name = player:get_player_name()
-    if formname ~= "ctf_info:notifications" then
-        return
+minetest.register_chatcommand("get_players", {
+    description = "Get Players",
+    func = function(name, param)
+        minetest.show_formspec(name, "ctf_info:players_online", ctf_info.get_players_formspec())
     end
-
-    if fields.back then
-        minetest.show_formspec(name, "ctf_info:formspec", get_formspec())
-        ctf_info.players[name] = true
-        ctf_info.notification_formspec_players[name] = nil
-    end
-
-    if fields.quit then
-        ctf_info.notification_formspec_players[name] = nil
-    end
-end)
+})

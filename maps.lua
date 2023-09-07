@@ -1,6 +1,6 @@
 --> From https://github.com/farooqkz/ctf-notify/blob/232b63cf59a761c53709df3ede1ab6c092a9f1e5/frontend/src/utils.js#L7
 
-ctf_info.maps = {
+local maps = {
     river_valley =  "River valley",
     nether_kingdom = "A Kingdom In The Nether",
     pirates_hideout = "Pirate's Hideout",
@@ -36,3 +36,5 @@ ctf_info.maps = {
     mayan_legend = "A Mayan Legend",
     appleton = "Appleton",
 }
+
+return maps
