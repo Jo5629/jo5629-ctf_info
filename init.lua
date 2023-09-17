@@ -21,7 +21,7 @@ local function fetch_url(url)
                 local json = minetest.parse_json(result.data)
 
                 if json == nil then
-                    minetest.log("ERROR", "Could not receive JSON file although request succeeded.")
+                    minetest.log("error", "Could not receive JSON file although request succeeded.")
                     return
                 end
 
