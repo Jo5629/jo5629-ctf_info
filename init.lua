@@ -131,10 +131,3 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
         end
     end
 end)
-
-minetest.register_chatcommand("get_players", {
-    description = "Get Players",
-    func = function(name, param)
-        minetest.show_formspec(name, "ctf_info:players_online", ctf_info.get_players_formspec())
-    end
-})
